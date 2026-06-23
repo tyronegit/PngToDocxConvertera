@@ -13,6 +13,11 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
+  <Project Path="PngToDocSetup3/PngToDocSetup3.vdproj" Type="Installer">
+    <BuildType Solution="New Release|*" Project="Release" />
+    <BuildType Solution="x64|*" Project="Debug" />
+    <Build />
+  </Project>
   <Project Path="PngToDocxConvertera/PngToDocxConvertera.csproj">
     <BuildType Solution="New Release|*" Project="Release" />
     <BuildType Solution="x64|Any CPU" Project="Release" />

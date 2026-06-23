@@ -252,6 +252,32 @@ namespace PngToDocxConvertera.Views
             return string.Join(Environment.NewLine, lines);
         }
 
+        private void SaveTxtButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(OcrPreviewTextBox.Text))
+            {
+                MessageBox.Show(
+                    "No OCR text to save. Click 'Preview OCR' first.",
+                    "Empty Text Warning",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            Microsoft.Win32.SaveFileDialog saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save Text File",
+                Filter = "Text File (*.txt)|*.txt",
+                FileName = Path.GetFileNameWithoutExtension(selectedImagePath) + ".txt"
+            };
+
+            if (saveDialog.ShowDialog() == true)
+            {
+                File.WriteAllText(saveDialog.FileName, OcrPreviewTextBox.Text);
+                SetStatus("TXT file created successfully.");
+            }
+        }
+
         private void ConvertButton_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrWhiteSpace(OcrPreviewTextBox.Text))

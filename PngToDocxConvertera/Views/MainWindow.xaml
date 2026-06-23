@@ -126,6 +126,8 @@
 
                             <Button x:Name="ConvertSingleButton" Content="Convert to Word Document" Click="ConvertButton_Click"/>
 
+                            <Button x:Name="SaveTxtButton" Content="Save as TXT" Click="SaveTxtButton_Click"/>
+
                             <Button x:Name="BatchConvertButton" Content="Convert Multiple Image Files" Click="BatchConvertButton_Click"/>
                         </StackPanel>
                     </Grid>
