@@ -128,6 +128,8 @@
 
                             <Button x:Name="SaveTxtButton" Content="Save as TXT" Click="SaveTxtButton_Click"/>
 
+                            <Button x:Name="SavePdfButton" Content="Save as PDF" Click="SavePdfButton_Click"/>
+
                             <Button x:Name="BatchConvertButton" Content="Convert Multiple Image Files" Click="BatchConvertButton_Click"/>
                         </StackPanel>
                     </Grid>

@@ -1,15 +1,22 @@
 using DocumentFormat.OpenXml;
-using System.Windows.Media;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using MigraDoc.Rendering;
+using PdfSharp.Drawing;
+using PdfSharp.Fonts;
+using PdfSharp.Pdf;
+using PngToDocConvertera;
 using PngToDocxConvertera.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Tesseract;
+
+
 
 namespace PngToDocxConvertera.Views
 {
@@ -26,7 +33,10 @@ namespace PngToDocxConvertera.Views
 
         public MainWindow()
         {
+            GlobalFontSettings.FontResolver ??= new WindowsFontResolver();
+
             InitializeComponent();
+
             ApplyThemeTextColors();
         }
 
@@ -278,6 +288,83 @@ namespace PngToDocxConvertera.Views
             }
         }
 
+        private void SavePdfButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(OcrPreviewTextBox.Text))
+            {
+                MessageBox.Show(
+                    "No OCR text to save. Click 'Preview OCR' first.",
+                    "Empty Text Warning",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            Microsoft.Win32.SaveFileDialog saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save PDF File",
+                Filter = "PDF File (*.pdf)|*.pdf",
+                FileName = Path.GetFileNameWithoutExtension(selectedImagePath) + ".pdf"
+            };
+
+            if (saveDialog.ShowDialog() == true)
+            {
+                CreateSimplePdf(saveDialog.FileName, OcrPreviewTextBox.Text);
+                SetStatus("PDF file created successfully.");
+            }
+        }
+
+        private void CreateSimplePdf(string outputPath, string text)
+        {
+            try
+            {
+                MigraDoc.DocumentObjectModel.Document document =
+                    new MigraDoc.DocumentObjectModel.Document();
+
+                document.Info.Title = "Image to DOCX Converter OCR Export";
+                #pragma warning disable CS8602 // Dereference of a possibly null reference.
+                document.Styles["Normal"].Font.Name = "Arial";
+                #pragma warning restore CS8602 // Dereference of a possibly null reference.
+
+                MigraDoc.DocumentObjectModel.Section section =
+                    document.AddSection();
+
+                MigraDoc.DocumentObjectModel.Paragraph title =
+                    section.AddParagraph();
+
+                title.AddText("Image to DOCX Converter - OCR Export");
+                title.Format.Font.Name = "Arial";
+                title.Format.Font.Size = 16;
+                title.Format.Font.Bold = true;
+                title.Format.SpaceAfter = "0.25in";
+
+                foreach (string line in text.Replace("\r\n", "\n").Split('\n'))
+                {
+                    MigraDoc.DocumentObjectModel.Paragraph paragraph =
+                        section.AddParagraph();
+
+                    paragraph.AddText(line);
+                    paragraph.Format.Font.Name = "Arial";
+                    paragraph.Format.Font.Size = 11;
+                    paragraph.Format.SpaceAfter = "0.05in";
+                }
+
+                MigraDoc.Rendering.PdfDocumentRenderer renderer = new MigraDoc.Rendering.PdfDocumentRenderer();
+
+                renderer.Document = document;
+                renderer.RenderDocument();
+                renderer.PdfDocument.Save(outputPath);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "PDF creation failed:\n\n" + ex.Message,
+                    "PDF Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
         private void ConvertButton_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrWhiteSpace(OcrPreviewTextBox.Text))
@@ -443,9 +530,62 @@ namespace PngToDocxConvertera.Views
             return string.Join(Environment.NewLine, result);
         }
 
+        private void AddImageToDocx(MainDocumentPart mainPart, Body body, string imagePath)
+        {
+            ImagePart imagePart = mainPart.AddImagePart(ImagePartType.Jpeg);
+
+            using (FileStream stream = new FileStream(imagePath, FileMode.Open))
+            {
+                imagePart.FeedData(stream);
+            }
+
+            string relationshipId = mainPart.GetIdOfPart(imagePart);
+
+            DocumentFormat.OpenXml.Wordprocessing.Drawing drawing = new DocumentFormat.OpenXml.Wordprocessing.Drawing(
+                new DocumentFormat.OpenXml.Drawing.Wordprocessing.Inline(
+                    new DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent
+                    {
+                        Cx = 5000000,
+                        Cy = 6500000
+                    },
+                    new DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties
+                    {
+                        Id = 1U,
+                        Name = "Source Image"
+                    },
+                    new DocumentFormat.OpenXml.Drawing.Graphic(
+                        new DocumentFormat.OpenXml.Drawing.GraphicData(
+                            new DocumentFormat.OpenXml.Drawing.Pictures.Picture(
+                                new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureProperties(
+                                    new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualDrawingProperties
+                                    {
+                                        Id = 0U,
+                                        Name = Path.GetFileName(imagePath)
+                                    },
+                                    new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureDrawingProperties()),
+                                new DocumentFormat.OpenXml.Drawing.Pictures.BlipFill(
+                                    new DocumentFormat.OpenXml.Drawing.Blip
+                                    {
+                                        Embed = relationshipId
+                                    },
+                                    new DocumentFormat.OpenXml.Drawing.Stretch(
+                                        new DocumentFormat.OpenXml.Drawing.FillRectangle())),
+                                new DocumentFormat.OpenXml.Drawing.Pictures.ShapeProperties()
+                            )
+                        )
+                        {
+                            Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture"
+                        }
+                    )
+                )
+            );
+
+            body.AppendChild(new Paragraph(new Run(drawing)));
+        }
+
         private void CreateDocx(string outputPath, string text)
         {
-            text = RemoveDuplicateLinesAggressive(text);
+            text = RemoveDuplicateLines(text);
 
             string templatePath = Path.Combine(
                 AppDomain.CurrentDomain.BaseDirectory,
@@ -464,44 +604,43 @@ namespace PngToDocxConvertera.Views
             using WordprocessingDocument wordDocument =
                 WordprocessingDocument.Open(outputPath, true);
 
-            #pragma warning disable CS8602
-            #pragma warning disable CS8600
-            Body body = wordDocument.MainDocumentPart.Document.Body;
-            #pragma warning restore CS8600
-            #pragma warning restore CS8602
-            #pragma warning disable CS8602
+            #pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
+            MainDocumentPart mainPart = wordDocument.MainDocumentPart;
+            #pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+
+            #pragma warning disable CS8602 // Dereference of a possibly null reference.
+            if (mainPart.Document.Body == null)
+                mainPart.Document.Body = new Body();
+            #pragma warning restore CS8602 // Dereference of a possibly null reference.
+
+            Body body = mainPart.Document.Body;
+
             body.RemoveAllChildren<Paragraph>();
-            #pragma warning restore CS8602
+
+            if (!string.IsNullOrWhiteSpace(selectedImagePath) && File.Exists(selectedImagePath))
+            {
+                AddImageToDocx(mainPart, body, selectedImagePath);
+
+                body.AppendChild(new Paragraph(
+                    new Run(
+                        new Break()
+                    )
+                ));
+            }
 
             string[] lines = text.Replace("\r\n", "\n").Split('\n');
 
             foreach (string line in lines)
             {
-                // Skip empty lines to prevent blank paragraphs from padding the document
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
                 string trimmed = line.TrimStart();
 
-                // Evaluate the line ONCE
-                if (LooksLikeBulletLine(line))
+                if (LooksLikeBulletLine(trimmed))
                 {
-                    // Strip the raw source bullet character (e.g., '-', '*', etc.)
-                    string bulletContent = trimmed.Substring(1).TrimStart();
+                    trimmed = trimmed.TrimStart('•', '-', '*', '·', 'o', 'O', ' ');
 
-                    Paragraph paragraph = new Paragraph();
-
-                    // Apply proper Word list formatting properties
-                    ParagraphProperties props = new ParagraphProperties(
-                        new NumberingProperties(
-                            new NumberingLevelReference() { Val = 0 },
-                            new NumberingId() { Val = 1 }
-                        )
-                    );
-                    paragraph.Append(props);
-
-                    paragraph.Append(
+                    Paragraph paragraph = new Paragraph(
                         new Run(
-                            new Text(bulletContent)
+                            new Text("• " + trimmed)
                         )
                     );
 
@@ -509,17 +648,20 @@ namespace PngToDocxConvertera.Views
                 }
                 else
                 {
-                    // Standard plain text line path
                     Paragraph paragraph = new Paragraph(
                         new Run(
                             new Text(line)
+                            {
+                                Space = SpaceProcessingModeValues.Preserve
+                            }
                         )
                     );
 
                     body.Append(paragraph);
                 }
             }
-            wordDocument.MainDocumentPart.Document.Save();
+
+            mainPart.Document.Save();
         }
     }
  }
