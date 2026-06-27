@@ -130,7 +130,7 @@
 
                             <Button x:Name="SavePdfButton" Content="Save as PDF" Click="SavePdfButton_Click"/>
 
-                            <Button x:Name="BatchConvertButton" Content="Convert Multiple Image Files" Click="BatchConvertButton_Click"/>
+                            <Button x:Name="BatchConvertButton" Content="Convert Image Folder" Click="BatchConvertButton_Click"/>
                         </StackPanel>
                     </Grid>
                 </Border>

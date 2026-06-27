@@ -55,8 +55,11 @@ namespace PngToDocxConvertera.Views
 
         private static bool IsSupportedImageFile(string filePath)
         {
-            string ext = Path.GetExtension(filePath).ToLowerInvariant();
-            return SupportedImageExtensions.Contains(ext);
+            string extension = Path.GetExtension(filePath);
+
+            return SupportedImageExtensions.Contains(
+                extension,
+                StringComparer.OrdinalIgnoreCase);
         }
 
         private void SetStatus(string message)
@@ -393,35 +396,36 @@ namespace PngToDocxConvertera.Views
 
         private void BatchConvertButton_Click(object sender, RoutedEventArgs e)
         {
-            Microsoft.Win32.OpenFileDialog openFileDialog = new Microsoft.Win32.OpenFileDialog
+            using var folderDialog = new System.Windows.Forms.FolderBrowserDialog
             {
-                Title = "Select Image Files",
-                Multiselect = true,
-                Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|All Files (*.*)|*.*"
+                Description = "Select a folder containing image files"
             };
 
-            if (openFileDialog.ShowDialog() != true)
+            if (folderDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
                 return;
 
-            var imageFiles = openFileDialog.FileNames
+            string folderPath = folderDialog.SelectedPath;
+
+            var imageFiles = Directory
+                .EnumerateFiles(folderPath)
                 .Where(IsSupportedImageFile)
                 .ToList();
 
             if (imageFiles.Count == 0)
             {
                 System.Windows.MessageBox.Show(
-                    "No supported image files were selected.",
+                    "No supported image files were found in the selected folder.",
                     "No Images",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return;
             }
 
-            string outputFolder = Path.Combine(
-                Path.GetDirectoryName(imageFiles[0]) ?? Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                "Converted DOCX Files");
-
+            string outputFolder = Path.Combine(folderPath, "Converted DOCX Files");
             Directory.CreateDirectory(outputFolder);
+
+            int successCount = 0;
+            int failCount = 0;
 
             foreach (string imageFile in imageFiles)
             {
@@ -435,25 +439,17 @@ namespace PngToDocxConvertera.Views
                         Path.GetFileNameWithoutExtension(imageFile) + ".docx");
 
                     CreateDocx(outputPath, text);
+                    successCount++;
                 }
-                catch (Exception ex)
+                catch
                 {
-                    System.Windows.MessageBox.Show(
-                        $"Failed to convert:\n{imageFile}\n\n{ex.Message}",
-                        "Batch Conversion Error",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
+                    failCount++;
                 }
             }
 
-            SetStatus("Multiple image files converted successfully.");
-
-            System.Windows.MessageBox.Show(
-                "Batch conversion complete.\n\nSaved to:\n" + outputFolder,
-                "Batch Complete",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            SetStatus($"Converted {successCount} image file(s). Failed: {failCount}. Output: {outputFolder}");
         }
+
 
         private string RunOcr(string imagePath)
         {
@@ -604,29 +600,15 @@ namespace PngToDocxConvertera.Views
             using WordprocessingDocument wordDocument =
                 WordprocessingDocument.Open(outputPath, true);
 
-            #pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
-            MainDocumentPart mainPart = wordDocument.MainDocumentPart;
-            #pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+            MainDocumentPart mainPart = wordDocument.MainDocumentPart
+                ?? throw new InvalidOperationException("MainDocumentPart is missing.");
 
-            #pragma warning disable CS8602 // Dereference of a possibly null reference.
-            if (mainPart.Document.Body == null)
-                mainPart.Document.Body = new Body();
-            #pragma warning restore CS8602 // Dereference of a possibly null reference.
+            mainPart.Document ??= new Document();
+            mainPart.Document.Body ??= new Body();
 
             Body body = mainPart.Document.Body;
 
-            body.RemoveAllChildren<Paragraph>();
-
-            if (!string.IsNullOrWhiteSpace(selectedImagePath) && File.Exists(selectedImagePath))
-            {
-                AddImageToDocx(mainPart, body, selectedImagePath);
-
-                body.AppendChild(new Paragraph(
-                    new Run(
-                        new Break()
-                    )
-                ));
-            }
+            body.RemoveAllChildren<Paragraph>();            
 
             string[] lines = text.Replace("\r\n", "\n").Split('\n');
 
