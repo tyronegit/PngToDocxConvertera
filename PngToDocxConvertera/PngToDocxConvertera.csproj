@@ -15,10 +15,10 @@
 
 		<TargetFramework>net8.0-windows</TargetFramework>
 
-		<Version>2.1.0</Version>
-		<FileVersion>2.1.0.0</FileVersion>
-		<AssemblyVersion>2.1.0.0</AssemblyVersion>
-		<InformationalVersion>2.1 OCR Pipeline Architecture</InformationalVersion>
+		<Version>2.2.0</Version>
+		<FileVersion>2.2.0.0</FileVersion>
+		<AssemblyVersion>2.2.0.0</AssemblyVersion>
+		<InformationalVersion>2.2 Pro Searchable PDF Edition</InformationalVersion>
 
 		<StartupObject>PngToDocxConvertera.App</StartupObject>
 
@@ -30,7 +30,7 @@
   <ItemGroup>
     <None Remove="PngToDocxConverter_Fluent.ico" />
     <None Remove="Templates\blank Central.docx" />
-    <None Remove="tessdata\eng.traineddata" />
+    <None Remove="tessdata\*.traineddata" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,7 +40,7 @@
       <Content Include="Templates\blank Central.docx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="tessdata\eng.traineddata">
+    <Content Include="tessdata\*.traineddata">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
